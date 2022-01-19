@@ -1,0 +1,19 @@
+binance.usa
+
+
+Atmain125!
+vikproh3300@gmail.com
+
+api key: BrsWGZTLE5nW4bGuH98vl8Y9s9tHmm4Q8xCP0AK9CTVyVG5r8VHJu1kx2TJAHyXj
+secret key: 5qc90s9yif0gAyJqLWtfR9Kp0Gmn529pfgdjFIUiDxsnqeHjB9NTlHyhDRasV0rH
+
+
+>>>>>
+
+
+
+aex
+
+api key: cf44d37068aa9c0cae6501371694f470
+secret key: cdf24d8241401fcd7b487460032b06d0ebbc898d0727aa0d26665685e0f606f1
+
