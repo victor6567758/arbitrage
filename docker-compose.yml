@@ -1,0 +1,69 @@
+version: '2.1'
+
+services:
+
+  db:
+    image: "postgres:10"
+    env_file:
+      - ./database.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./database-data:/var/lib/postgresql/data
+      - ./init-data/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+
+  zoo1:
+    image: zookeeper:3.4.9
+    hostname: zoo1
+    ports:
+      - "2181:2181"
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_PORT: 2181
+      ZOO_SERVERS: server.1=zoo1:2888:3888
+    volumes:
+      - ./zk-single-kafka-single/zoo1/data:/data
+      - ./zk-single-kafka-single/zoo1/datalog:/datalog
+    depends_on:
+      - db
+
+  kafka:
+    image: confluentinc/cp-kafka:5.3.1
+    hostname: kafka1
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_DOCKER_INTERNAL://kafka1:19092,LISTENER_DOCKER_EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_DOCKER_INTERNAL:PLAINTEXT,LISTENER_DOCKER_EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER_INTERNAL
+      KAFKA_ZOOKEEPER_CONNECT: "zoo1:2181"
+      KAFKA_BROKER_ID: 1
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - ./zk-single-kafka-single/kafka1/data:/var/lib/kafka/data
+    depends_on:
+      - zoo1
+
+  provider-aex:
+    build:
+      context: providers/
+    environment:
+      AEX_API_KEY: cf44d37068aa9c0cae6501371694f470
+      AEX_API_SECRET: cdf24d8241401fcd7b487460032b06d0ebbc898d0727aa0d26665685e0f606f1
+      AEX_USER_ID: 988521
+      KAFKA_HOST: kafka:9092
+    command: "main.py -p aex"
+    depends_on:
+      - kafka
+
+  provider-binance:
+    build:
+      context: providers/
+    environment:
+      BINANCE_API_KEY: BrsWGZTLE5nW4bGuH98vl8Y9s9tHmm4Q8xCP0AK9CTVyVG5r8VHJu1kx2TJAHyXj
+      BINANCE_API_SECRET: 5qc90s9yif0gAyJqLWtfR9Kp0Gmn529pfgdjFIUiDxsnqeHjB9NTlHyhDRasV0rH
+      KAFKA_HOST: kafka:9092
+    command: "main.py -p binance"
+    depends_on:
+      - kafka
