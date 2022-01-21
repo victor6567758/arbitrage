@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 
@@ -50,3 +51,10 @@ class Candle:
 
     def __str__(self):
         return self.to_string()
+
+    def to_json(self):
+        return json.dumps(self).encode('utf-8')
+
+    def to_dict(self):
+        return {'s': self.instrument.instrument_generator(self.instrument.coin, self.instrument.market),
+                't': self.datetime, 'o': self.open, 'h': self.high, 'l': self.low, 'c': self.close, 'v': self.volume}
