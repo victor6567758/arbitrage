@@ -18,3 +18,7 @@ vikproh3300@gmail.com
 id: 988521
 api key: cf44d37068aa9c0cae6501371694f470
 secret key: cdf24d8241401fcd7b487460032b06d0ebbc898d0727aa0d26665685e0f606f1
+
+
+>>>
+docker exec -it `docker ps --format "{{ .ID }} {{.Image}}" | grep postgres | awk '{print $1}'` /bin/bash
