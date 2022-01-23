@@ -2,6 +2,7 @@ CREATE TABLE ohcl
 (
     id       integer                                NOT NULL CONSTRAINT ohcl_pkey PRIMARY KEY,
     time     timestamp WITH TIME ZONE               NOT NULL,
+    provider   varchar(32)                            NOT NULL,
     symbol   varchar(32)                            NOT NULL,
     open     double precision                       NOT NULL,
     high     double precision                       NOT NULL,

@@ -10,6 +10,7 @@ import websocket
 
 from candle import Instrument, Candle
 from provider import BaseProvider
+from util import read_request_helper
 
 REST_API = 'https://api.aex.zone'
 WS_API = 'wss://api.aex.zone/wsv3'
@@ -100,10 +101,7 @@ class AexProvider(BaseProvider):
         return False
 
     def check_instrument(self):
-        r = urllib.request.urlopen(REST_API + '/v3/allpair.php')
-        encoding = r.info().get_content_charset('utf-8')
-        instr_json = json.loads(r.read().decode(encoding))
-
+        instr_json = read_request_helper(REST_API + '/v3/allpair.php')
         for instr in instr_json['data']:
             if instr['coin'].upper() == self.get_instrument().coin and instr[
                 'market'].upper() == self.get_instrument().market:
@@ -125,11 +123,9 @@ class AexProvider(BaseProvider):
         self.ws.send(command_str)
 
     def load_klines(self):
-        r = urllib.request.urlopen(
-            REST_API + '/v3/kLine.php' + '?mk_type=' + self.get_instrument().market + '&coinname=' + self.get_instrument().coin +
-            '&cycle=' + TIME_PERIOD)
-        encoding = r.info().get_content_charset('utf-8')
-        kines_json = json.loads(r.read().decode(encoding))
+        kines_json = read_request_helper(REST_API + '/v3/kLine.php' + '?mk_type=' +
+                                         self.get_instrument().market + '&coinname=' + self.get_instrument().coin +
+                                         '&cycle=' + TIME_PERIOD)
 
         for kline in kines_json['data']:
             candle = Candle(self.get_instrument(), kline['t'] * 1000, float(kline['o']), float(kline['h']),

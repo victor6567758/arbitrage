@@ -2,15 +2,84 @@ version: '2.1'
 
 services:
 
-  db:
-    image: "postgres:10"
-    env_file:
-      - ./database.env
+  # sql-client:
+  #   image: ftisiot/flink_sql_cli:1.13.2
+  #   depends_on:
+  #     - jobmanager
+  #   environment:
+  #     FLINK_JOBMANAGER_HOST: jobmanager
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.8.0
+    environment:
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - discovery.type=single-node
     ports:
-      - "5432:5432"
+      - "9200:9200"
+      - "9300:9300"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.8.0
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+  load-kibana-dashboard:
+    build: ./kibana_dashboard
+    command: ['/bin/bash', '-c', 'cat /tmp/load/load_ndjson.sh | tr -d "\r" | bash']
+    depends_on:
+      - kibana
+      - elasticsearch
+
+  jobmanager:
+    build:
+      context: pyflink/
+    image: pyflink/pyflink:1.13.1-scala_2.12
     volumes:
-      - ./database-data:/var/lib/postgresql/data
-      - ./init-data/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./pyflink:/opt/pyflink
+    hostname: "jobmanager"
+    expose:
+      - "6123"
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      JOB_MANAGER_RPC_ADDRESS: jobmanager
+    depends_on:
+      - kafka1
+
+  taskmanager:
+    image: pyflink/pyflink:1.13.1-scala_2.12
+    volumes:
+    - ./pyflink:/opt/pyflink
+    expose:
+      - "6121"
+      - "6122"
+    command: taskmanager
+    environment:
+      JOB_MANAGER_RPC_ADDRESS: jobmanager
+    depends_on:
+      - jobmanager
+
+  # db:
+  #   image: "postgres:10"
+  #   env_file:
+  #     - ./database.env
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - ./database-data:/var/lib/postgresql/data
+  #     - ./init-data/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
   zoo1:
     image: zookeeper:3.4.9
@@ -24,8 +93,7 @@ services:
     volumes:
       - ./zk-single-kafka-single/zoo1/data:/data
       - ./zk-single-kafka-single/zoo1/datalog:/datalog
-    depends_on:
-      - db
+
 
   kafka1:
     image: confluentinc/cp-kafka:5.3.1
@@ -33,6 +101,7 @@ services:
     ports:
       - "9092:9092"
     environment:
+      HOSTNAME_COMMAND: "route -n | awk '/UG[ \t]/{print $$2}'"
       KAFKA_ADVERTISED_LISTENERS: LISTENER_DOCKER_INTERNAL://kafka1:19092,LISTENER_DOCKER_EXTERNAL://${DOCKER_HOST_IP:-127.0.0.1}:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_DOCKER_INTERNAL:PLAINTEXT,LISTENER_DOCKER_EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER_INTERNAL
@@ -40,6 +109,7 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CREATE_TOPICS: "OHCL:1:1"
     volumes:
       - ./zk-single-kafka-single/kafka1/data:/var/lib/kafka/data
     depends_on:
@@ -49,10 +119,9 @@ services:
     build:
       context: providers/
     environment:
-      AEX_API_KEY: cf44d37068aa9c0cae6501371694f470
+      AEX_API_KEY: cf44d37068aa9c0cae65013716platform_pay_amount_194f470
       AEX_API_SECRET: cdf24d8241401fcd7b487460032b06d0ebbc898d0727aa0d26665685e0f606f1
       AEX_USER_ID: 988521
-      KAFKA_HOST: kafka1:19092
     command: "main.py -p aex"
     depends_on:
       - kafka1
@@ -63,7 +132,6 @@ services:
     environment:
       BINANCE_API_KEY: BrsWGZTLE5nW4bGuH98vl8Y9s9tHmm4Q8xCP0AK9CTVyVG5r8VHJu1kx2TJAHyXj
       BINANCE_API_SECRET: 5qc90s9yif0gAyJqLWtfR9Kp0Gmn529pfgdjFIUiDxsnqeHjB9NTlHyhDRasV0rH
-      KAFKA_HOST: kafka1:19092
     command: "main.py -p binance"
     depends_on:
       - kafka1

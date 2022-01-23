@@ -21,3 +21,4 @@ class TestCandle(TestCase):
         self.assertEqual(json_candle['c'], 2.2)
         self.assertEqual(json_candle['v'], 20)
         self.assertEqual(json_candle['s'], 'SYSUSDT')
+        self.assertEqual(json_candle['p'], 1)

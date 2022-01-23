@@ -20,7 +20,7 @@ args = parser.parse_args()
 
 provider = None
 
-KAFKA_HOST = os.environ.get("KAFKA_HOST")
+KAFKA_HOST = 'kafka1:19092'
 RETRY_PERIOD = 5
 
 BINANCE_PROVIDER_ID = 1
@@ -28,6 +28,8 @@ BINANCE_PROVIDER_NAME = 'BINANCE_PROVIDER'
 
 AEX_PROVIDER_ID = 2
 AEX_PROVIDER_NAME = 'AEX_PROVIDER_NAME'
+
+KAFKA_TOPIC='OHCL'
 
 
 def signal_handler(sig, frame):
@@ -58,11 +60,11 @@ def main_start():
     logging.info(f"Successfully connected to {KAFKA_HOST}")
 
     if args.provider.lower() == 'binance':
-        provider = BinanceProvider(lambda name, id, data: send_message(producer, name, data), BINANCE_PROVIDER_ID,
+        provider = BinanceProvider(lambda name, id, data: send_message(producer, KAFKA_TOPIC, data), BINANCE_PROVIDER_ID,
                                    BINANCE_PROVIDER_NAME,
                                    Instrument('SYS', 'USDT', BINANCE_PROVIDER_ID, lambda x, y: x + y))
     elif args.provider.lower() == 'aex':
-        provider = AexProvider(lambda name, id, data: send_message(producer, name, data), AEX_PROVIDER_ID,
+        provider = AexProvider(lambda name, id, data: send_message(producer, KAFKA_TOPIC, data), AEX_PROVIDER_ID,
                                AEX_PROVIDER_NAME,
                                Instrument('SYS', 'USDT', AEX_PROVIDER_ID, lambda x, y: (x + '_' + y).lower()))
     else:

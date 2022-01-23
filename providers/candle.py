@@ -10,7 +10,7 @@ class Instrument:
         self.instrument_generator = instrument_generator
 
     def to_string(self):
-        return "instrument: {}/{}, provider id: {}".format(self.coin, self.market, self.provider_id)
+        return "Instrument: {}/{}, provider id: {}".format(self.coin, self.market, self.provider_id)
 
     def instrument(self):
         return self.instrument_generator(self.coin, self.market)
@@ -56,5 +56,5 @@ class Candle:
         return json.dumps(self).encode('utf-8')
 
     def to_dict(self):
-        return {'s': self.instrument.instrument_generator(self.instrument.coin, self.instrument.market),
+        return {'p': self.instrument.provider_id, 's': self.instrument.instrument_generator(self.instrument.coin, self.instrument.market),
                 't': self.datetime, 'o': self.open, 'h': self.high, 'l': self.low, 'c': self.close, 'v': self.volume}

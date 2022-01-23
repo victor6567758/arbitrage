@@ -22,3 +22,16 @@ secret key: cdf24d8241401fcd7b487460032b06d0ebbc898d0727aa0d26665685e0f606f1
 
 >>>
 docker exec -it `docker ps --format "{{ .ID }} {{.Image}}" | grep postgres | awk '{print $1}'` /bin/bash
+
+docker-compose exec jobmanager ./bin/flink run -py /opt/pyflink/msg_processing.py -d
+
+docker-compose exec jobmanager /bin/bash
+
+docker-compose exec kafka1 kafka-console-consumer.sh --bootstrap-server kafka1:19092 --topic OHCL
+
+
+docker-compose exec sql-client /bin/bash
+
+./kafka-consumer-groups.sh  --list --bootstrap-server localhost:9092
+
+./kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic OHCL --offset 0 --partition 0
