@@ -20,7 +20,8 @@ args = parser.parse_args()
 
 provider = None
 
-KAFKA_HOST = 'kafka1:19092'
+KAFKA_HOST = os.environ.get("KAFKA_HOST")
+
 RETRY_PERIOD = 5
 
 BINANCE_PROVIDER_ID = 1

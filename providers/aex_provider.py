@@ -27,7 +27,7 @@ class AexProvider(BaseProvider):
     def __init__(self, senderLambda, id, name, instrument):
         super(AexProvider, self).__init__(senderLambda, id, name, instrument)
         self.ping_thread = None
-        # websocket.enableTrace(True)
+        #websocket.enableTrace(True)
         self.ws = websocket.WebSocketApp(WS_API,
                                          on_open=self.on_open,
                                          on_message=self.on_message,
@@ -54,10 +54,15 @@ class AexProvider(BaseProvider):
 
         cmd = message_json['cmd']
         code = message_json.get('code')
-        if cmd == 99 and code == 20000:
+        if cmd == 99:
             # login is ok
-            logging.log(logging.INFO, 'Logged in Ok')
-            self.subscribe_symbol_command()
+            if code == 20000:
+                logging.log(logging.INFO, 'Logged in Ok')
+                self.subscribe_symbol_command()
+            else:
+                logging.log(logging.ERROR, 'Cannot logging, trying to shutdown')
+                self.shutdown()
+
         elif cmd == 2 and message_json['action'] == 'sub' and code == 20000:
             logging.log(logging.INFO, 'Subscribed for %s', message_json['symbol'])
 
@@ -72,9 +77,11 @@ class AexProvider(BaseProvider):
         self.login_command()
 
         def ping_thread(*args):
+            logging.log(logging.INFO, "Ping thread is starting...")
             while True:
                 try:
                     ws.send('ping')
+                    logging.log(logging.DEBUG, "Ping sent")
                     time.sleep(15)
                 except Exception as err:
                     logging.log(logging.ERROR, "ping thread error: {0}".format(err))
