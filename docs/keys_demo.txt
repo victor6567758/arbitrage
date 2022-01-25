@@ -35,3 +35,9 @@ docker-compose exec sql-client /bin/bash
 ./kafka-consumer-groups.sh  --list --bootstrap-server localhost:9092
 
 ./kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic OHCL --offset 0 --partition 0
+
+docker-compose exec jobmanager ./bin/flink run -py /opt/pyflink/msg_processing.py -d
+
+/opt/flink/bin/flink run -py /opt/pyflink/msg_processing.py
+
+https://github.com/apache/flink-playgrounds

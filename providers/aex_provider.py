@@ -100,7 +100,7 @@ class AexProvider(BaseProvider):
             symbol = symbol[0:idx]
 
             if kline['i'] == TIME_PERIOD and self.get_instrument().instrument() == symbol:
-                candle = Candle(self.get_instrument(), kline['t'] * 1000, float(kline['o']),
+                candle = Candle(self.get_instrument(), kline['t'], float(kline['o']),
                                 float(kline['h']), float(kline['l']), float(kline['c']), float(kline['v']))
 
                 self.process_ohlc(candle)
@@ -135,7 +135,7 @@ class AexProvider(BaseProvider):
                                          '&cycle=' + TIME_PERIOD)
 
         for kline in kines_json['data']:
-            candle = Candle(self.get_instrument(), kline['t'] * 1000, float(kline['o']), float(kline['h']),
+            candle = Candle(self.get_instrument(), kline['t'], float(kline['o']), float(kline['h']),
                             float(kline['l']), float(kline['c']), float(kline['v']))
 
             self.process_ohlc(candle)

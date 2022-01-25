@@ -8,9 +8,9 @@ from candle import Candle, Instrument
 
 class TestCandle(TestCase):
     def test_to_string(self):
-        time_val = int(time.time() * 1000)
+        time_val = time.time()
         candle = Candle(Instrument('SYS', 'USDT', 1, lambda x, y: x + y),
-                        int(time.time() * 1000), 1.1, 2.3, 0.4, 2.2, 20)
+                        time.time(), 1.1, 2.3, 0.4, 2.2, 20)
         json_candle_str = json.dumps(candle.to_dict()).encode('utf-8')
         json_candle = json.loads(json_candle_str)
 

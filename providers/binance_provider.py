@@ -49,7 +49,7 @@ class BinanceProvider(BaseProvider):
 
     def from_klines(self, klines):
         for kline in klines:
-            candle = Candle(self.get_instrument(), kline[6], float(kline[1]), float(kline[2]), float(kline[3]),
+            candle = Candle(self.get_instrument(), kline[6] / 1000.0, float(kline[1]), float(kline[2]), float(kline[3]),
                             float(kline[4]),
                             float(kline[5]))
             self.process_ohlc(candle)
@@ -58,7 +58,7 @@ class BinanceProvider(BaseProvider):
         if msg['e'] == 'kline':
             data = msg['k']
             if data['i'] == '1m' and data['x'] and data['s'] == self.get_instrument().instrument():
-                candle = Candle(self.get_instrument(), data['T'], float(data['o']), float(data['h']), float(data['l']),
+                candle = Candle(self.get_instrument(), data['T'] / 1000.0, float(data['o']), float(data['h']), float(data['l']),
                                 float(data['c']), float(data['n']))
                 self.process_ohlc(candle)
 

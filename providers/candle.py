@@ -45,7 +45,7 @@ class Candle:
     def to_string(self):
         return "instrument: {}, open: {}, high: {}, low: {}, close: {}, volume: {}, datetime: {}".format(
             self.instrument, self.open, self.high, self.low, self.close, self.volume,
-            datetime.utcfromtimestamp(self.datetime / 1000.0).strftime('%Y-%m-%d %H:%M:%S'))
+            datetime.utcfromtimestamp(self.datetime).strftime('%Y-%m-%d %H:%M:%S'))
 
     def __repr__(self):
         return self.to_string()
