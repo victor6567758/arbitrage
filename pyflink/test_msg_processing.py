@@ -1,56 +1,66 @@
-from datetime import datetime
+import os
 from unittest import TestCase
 
-from pyflink.common import Row, WatermarkStrategy, Duration
 from pyflink.common.watermark_strategy import TimestampAssigner
 from pyflink.table import EnvironmentSettings, StreamTableEnvironment, DataTypes
-from pyflink.table import expressions as expr
-from pyflink.table.descriptors import FileSystem, Json, Schema, Rowtime, Kafka, Csv, OldCsv
-from pyflink.table.expressions import col
+from pyflink.table.descriptors import FileSystem, Schema, Rowtime, Csv
 from pyflink.table.udf import udf
-from pyflink.table.window import Tumble
 
-from msg_processing import provider_id_to_name, AEX_PROVIDER_NAME, BINANCE_PROVIDER_NAME, transform_function, \
-    BINANCE_PROVIDER_ID, AEX_PROVIDER_ID
-from util import convert_date_to_unix, convert_unix_to_datetime
+from msg_processing import AEX_PROVIDER_NAME, BINANCE_PROVIDER_NAME, transform_function_simple, \
+    BINANCE_PROVIDER_ID, AEX_PROVIDER_ID, setup_udf, transform_function_arbitrage
+from util import convert_unix_to_datetime
 
 SYMBOL = 'SYSUSDT'
-
+JAR_PATH = 'file://' + os.path.abspath("./test_libs")
 
 @udf(input_types=[DataTypes.BIGINT()], result_type=DataTypes.TIMESTAMP(3))
 def msc_to_timestamp(msec):
     return convert_unix_to_datetime(msec)
 
 
-class MyTimestampAssigner(TimestampAssigner):
-    def extract_timestamp(self, value, record_timestamp: int) -> int:
-        return int(value[0])
+def test_config(t_env):
+    t_env.get_config().get_configuration().set_string('parallelism.default', '1')
+    t_env.get_config().get_configuration().set_string("execution.checkpointing.interval", "10s")
+    class_paths = "{0}/flink-json-1.13.1.jar;{0}/flink-csv-1.13.1-sql-jar.jar;" \
+                  "{0}/flink-csv-1.13.1.jar;" \
+                  "{0}/flink-connector-filesystem_2.12-1.11.6.jar;"\
+                  "{0}/flink-connector-files-1.13.1.jar".format(JAR_PATH)
 
-# https://stackoverflow.com/questions/69945836/pyflink-a-group-window-expects-a-time-attribute-for-grouping-in-a-stream-enviro
+
+    t_env.get_config().get_configuration().set_string("pipeline.jars", class_paths)
+    #t_env.get_config().get_configuration().set_string("pipeline.classpaths", class_paths)
 
 
-def create_temp_table(t_env):
+def create_temp_src_table_2(t_env):
+    create_source_ddl = """
+               CREATE TABLE ohcl_msg_test (
+                   t BIGINT,
+                   p INTEGER,
+                   s VARCHAR,
+                   o DOUBLE,
+                   h DOUBLE,
+                   l DOUBLE,
+                   c DOUBLE,
+                   v DOUBLE,
+                   new_t as TO_TIMESTAMP(FROM_UNIXTIME(t)),
+                   WATERMARK FOR new_t AS new_t - INTERVAL '10' SECONDS
+               ) WITH (
+                 'connector' = 'filesystem',
+                 'path' = 'resources/test_aggregation.csv',
+                 'format' = 'csv'
+               )
+               """
+    t_env.execute_sql(create_source_ddl)
 
-    t_env.connect(
-        Csv()
+
+def create_temp_src_table(t_env):
+    t_env.connect(FileSystem().path(
+        str(os.path.join(os.path.dirname(__file__), 'resources', 'test_aggregation.csv')))
     ).with_format(
-        OldCsv().schema(
-            DataTypes.ROW(
-                [
-                    DataTypes.FIELD("t", DataTypes.TIMESTAMP(3)),
-                    DataTypes.FIELD("p", DataTypes.INT()),
-                    DataTypes.FIELD("s", DataTypes.STRING()),
-                    DataTypes.FIELD("o", DataTypes.DOUBLE()),
-                    DataTypes.FIELD("h", DataTypes.DOUBLE()),
-                    DataTypes.FIELD("l", DataTypes.DOUBLE()),
-                    DataTypes.FIELD("c", DataTypes.DOUBLE()),
-                    DataTypes.FIELD("v", DataTypes.DOUBLE()),
-                ]
-            )
-        )
+        Csv(field_delimiter=',')
     ).with_schema(
         Schema()
-            .field("t", DataTypes.TIMESTAMP(3))
+            .field("new_t", DataTypes.TIMESTAMP(3))
             .field("p", DataTypes.INT())
             .field("s", DataTypes.STRING())
             .field("o", DataTypes.DOUBLE())
@@ -60,18 +70,19 @@ def create_temp_table(t_env):
             .field("v", DataTypes.DOUBLE())
             .rowtime(
             Rowtime()
-                .timestamps_from_field("event_timestamp")
-                .watermarks_periodic_bounded(60000)
+                .timestamps_from_field("new_t")
+                .watermarks_periodic_ascending()
         )
     ).in_append_mode().create_temporary_table(
-        "input_ohlc"
+        "ohcl_msg_test"
     )
+
 
 class Test(TestCase):
     def test_processing(self):
         env_settings = EnvironmentSettings.new_instance().in_streaming_mode().use_blink_planner().build()
         t_env = StreamTableEnvironment.create(environment_settings=env_settings)
-        t_env.get_config().get_configuration().set_string('parallelism.default', '1')
+        test_config(t_env)
 
         src_tab = t_env.from_elements([
             (1642980060, BINANCE_PROVIDER_ID, SYMBOL, 0.9351, 0.9389, 0.9346, 0.9346, 285),
@@ -83,8 +94,8 @@ class Test(TestCase):
             (1642980180, AEX_PROVIDER_ID, SYMBOL, 0.9185, 0.9209, 0.917, 0.9207, 30)
         ], ['t', 'p', 's', 'o', 'h', 'l', 'c', 'v'])
 
-        t_env.register_function('provider_id_to_name', provider_id_to_name)
-        execute_result = transform_function(src_tab).to_pandas()
+        setup_udf(t_env)
+        execute_result = transform_function_simple(src_tab).to_pandas()
 
         execute_values = execute_result.to_dict('records')
         aex_row = [x for x in execute_values if x['provider'] == AEX_PROVIDER_NAME][0]
@@ -96,83 +107,34 @@ class Test(TestCase):
     def test_aggregation(self):
         env_settings = EnvironmentSettings.new_instance().in_streaming_mode().use_blink_planner().build()
         t_env = StreamTableEnvironment.create(environment_settings=env_settings)
-        t_env.get_config().get_configuration().set_string('parallelism.default', '1')
+        test_config(t_env)
 
-        src_tab = t_env.from_elements(
-            [
-                (convert_date_to_unix(datetime(2022, 1, 20, 18, 0, 0)), BINANCE_PROVIDER_ID, SYMBOL,
-                 0.9351, 0.9389, 0.9346, 0.9346, 280.0),
-                (convert_date_to_unix(datetime(2022, 1, 20, 18, 0, 1)), BINANCE_PROVIDER_ID, SYMBOL,
-                 0.9346, 0.9351, 0.9338, 0.9341, 100.0),
-                (convert_date_to_unix(datetime(2022, 1, 20, 18, 0, 2)) , BINANCE_PROVIDER_ID, SYMBOL,
-                 0.9341, 0.9326, 0.9284, 0.9289, 200.0),
+        create_temp_src_table_2(t_env)
+        setup_udf(t_env)
 
-                (convert_date_to_unix(datetime(2022, 1, 20, 17, 59, 59)), AEX_PROVIDER_ID, SYMBOL,
-                 0.9352, 0.9370, 0.9356, 0.9365, 280.0),
-                (convert_date_to_unix(datetime(2022, 1, 20, 17, 59, 59)), AEX_PROVIDER_ID, SYMBOL,
-                 0.9365, 0.9380, 0.9356, 0.9372, 100.0),
-                (convert_date_to_unix(datetime(2022, 1, 20, 17, 59, 59)), AEX_PROVIDER_ID, SYMBOL,
-                 0.9372, 0.9380, 0.9336, 0.9365, 150.0),
+        sink_csv = """
+                CREATE TABLE es_sink_2 (
+                    ltmstmp BIGINT,
+                    provider_list MULTISET<STRING>,
+                    symbol VARCHAR,
+                    avr_close_list MULTISET<DOUBLE>,
+                    text_time as TO_TIMESTAMP(FROM_UNIXTIME(ltmstmp)),
+                    PRIMARY KEY(ltmstmp, symbol) NOT ENFORCED
+                ) with (
+                    'connector' = 'filesystem',           -- required: specify the connector
+                    'path' = 'file:///tmp/output',  -- required: path to a directory
+                    'format' = 'CSV'
+                )
+        """
 
-                (convert_date_to_unix(datetime(2022, 1, 20, 18, 1, 59)), AEX_PROVIDER_ID, SYMBOL,
-                 0.9482, 0.9510, 0.9282, 0.9300, 100.0),
-                (convert_date_to_unix(datetime(2022, 1, 20, 18, 1, 59)), AEX_PROVIDER_ID, SYMBOL,
-                 0.9301, 0.9500, 0.9382, 0.9400, 160.0)
-            ],
-            DataTypes.ROW(
-                [
-                    DataTypes.FIELD("t", DataTypes.BIGINT()),
-                    DataTypes.FIELD("p", DataTypes.INT()),
-                    DataTypes.FIELD("s", DataTypes.STRING()),
-                    DataTypes.FIELD("o", DataTypes.DOUBLE()),
-                    DataTypes.FIELD("h", DataTypes.DOUBLE()),
-                    DataTypes.FIELD("l", DataTypes.DOUBLE()),
-                    DataTypes.FIELD("c", DataTypes.DOUBLE()),
-                    DataTypes.FIELD("v", DataTypes.DOUBLE())
+        t_env.execute_sql(sink_csv)
 
-                ]
-            )
-        )
+        execute_result = transform_function_arbitrage(t_env.from_path('ohcl_msg_test')).execute_insert("es_sink_2")
 
-        t_env.register_function('msc_to_timestamp', msc_to_timestamp)
-
-        def map_function(r: Row) -> Row:
-            return Row(convert_unix_to_datetime(r.t / 1000), r.p, r.s, r.o, r.h, r.l, r.c, r.v)
-
-        identity = udf(map_function,
-                       result_type=DataTypes.ROW(
-                           [
-                               DataTypes.FIELD("rowtime", DataTypes.TIMESTAMP(3)),
-                               DataTypes.FIELD("p", DataTypes.INT()),
-                               DataTypes.FIELD("s", DataTypes.STRING()),
-                               DataTypes.FIELD("o", DataTypes.DOUBLE()),
-                               DataTypes.FIELD("h", DataTypes.DOUBLE()),
-                               DataTypes.FIELD("l", DataTypes.DOUBLE()),
-                               DataTypes.FIELD("c", DataTypes.DOUBLE()),
-                               DataTypes.FIELD("v", DataTypes.DOUBLE())
-                           ]
-                       ))
-
-        src_tab = src_tab.map(identity).alias('rowtime', 'p', 's', 'o', 'h', 'l', 'c', 'v')
-        #src_tab = src_tab.add_columns(expr.call(msc_to_timestamp, src_tab.t).alias('rowtime'))
-
-
-        # src_tab = src_tab.assign_timestamps_and_watermarks(
-        #     WatermarkStrategy.for_bounded_out_of_orderness(Duration.of_seconds(2))
-        #         .with_timestamp_assigner(MyTimestampAssigner()))
-
-        # src_tab = src_tab.window(Tumble.over("5.min").on("rowtime").alias("w")) \
-        #     .group_by("w") \
-        #     .select(col("w").start, col("w").end, col("w").rowtime)
-
-        # type_info=Types.ROW([
-        #     Types.BIG_INT(), Types.INT(), Types.STRING(), Types.DOUBLE(), Types.DOUBLE(), Types.DOUBLE(),
-        #     Types.DOUBLE(), Types.DOUBLE()
-        # ]), schema=Schema.new_builder() \
-        #     .column_by_expression("rowtime", "CAST(f0 AS TIMESTAMP(3))") \
-        #     .column("f1", DataTypes.STRING()) \
-        #     .column("f2", DataTypes.STRING()) \
-        #     .watermark("rowtime", "rowtime - INTERVAL '5' MINUTE") \
-        #     .build())
+        # table_result = execute_result
+        # with table_result.collect() as results:
+        #     for result in results:
+        #         row = str(result)
+        #         print(row)
 
         t = 0

@@ -22,9 +22,9 @@ class BinanceProvider(BaseProvider):
         if not self.check_instrument():
             raise Exception('Cannot find symbol {}'.format(self.get_instrument()))
 
-        klines = self.client.get_historical_klines(self.get_instrument().instrument(), Client.KLINE_INTERVAL_1MINUTE,
-                                                   "1 day ago UTC")
-        self.from_klines(klines)
+        #klines = self.client.get_historical_klines(self.get_instrument().instrument(), Client.KLINE_INTERVAL_1MINUTE,
+        #                                   "1 day ago UTC")
+        #self.from_klines(klines)
 
         self.twm.start()
         self.twm.start_kline_socket(callback=self.handle_socket_message, symbol=self.get_instrument().instrument())

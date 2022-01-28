@@ -80,7 +80,8 @@ def main_start():
 
 def send_message(producer, topic, message):
     try:
-        logging.info('Sending message: %s', message)
+        logging.info("{}, {}, '{}', {}, {}, {}, {}, {}".format(message.datetime, message.instrument.provider_id, message.instrument.coin + message.instrument.market,
+                                                        message.open, message.high, message.low, message.close, message.volume))
         result = producer.send(topic, message)
         result.get(timeout=10)
     except KafkaError as err:

@@ -40,7 +40,7 @@ class AexProvider(BaseProvider):
         if not self.check_instrument():
             raise Exception('Cannot find symbol {}'.format(self.get_instrument()))
 
-        self.load_klines()
+        #self.load_klines()
         self.ws.run_forever()
 
     def on_message(self, ws, message):

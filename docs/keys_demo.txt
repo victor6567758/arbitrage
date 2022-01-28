@@ -41,3 +41,7 @@ docker-compose exec jobmanager ./bin/flink run -py /opt/pyflink/msg_processing.p
 /opt/flink/bin/flink run -py /opt/pyflink/msg_processing.py
 
 https://github.com/apache/flink-playgrounds
+
+curl -X DELETE http://localhost:9200/test-2017-06
+
+http://localhost:9200/ohcl/_search
