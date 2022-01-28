@@ -12,6 +12,7 @@ from util import convert_unix_to_datetime
 
 SYMBOL = 'SYSUSDT'
 JAR_PATH = 'file://' + os.path.abspath("./test_libs")
+TEST_OUTPUT = 'file://' + os.path.abspath("./test_output")
 
 @udf(input_types=[DataTypes.BIGINT()], result_type=DataTypes.TIMESTAMP(3))
 def msc_to_timestamp(msec):
@@ -21,14 +22,6 @@ def msc_to_timestamp(msec):
 def test_config(t_env):
     t_env.get_config().get_configuration().set_string('parallelism.default', '1')
     t_env.get_config().get_configuration().set_string("execution.checkpointing.interval", "10s")
-    class_paths = "{0}/flink-json-1.13.1.jar;{0}/flink-csv-1.13.1-sql-jar.jar;" \
-                  "{0}/flink-csv-1.13.1.jar;" \
-                  "{0}/flink-connector-filesystem_2.12-1.11.6.jar;"\
-                  "{0}/flink-connector-files-1.13.1.jar".format(JAR_PATH)
-
-
-    t_env.get_config().get_configuration().set_string("pipeline.jars", class_paths)
-    #t_env.get_config().get_configuration().set_string("pipeline.classpaths", class_paths)
 
 
 def create_temp_src_table_2(t_env):
@@ -121,15 +114,12 @@ class Test(TestCase):
                     text_time as TO_TIMESTAMP(FROM_UNIXTIME(ltmstmp)),
                     PRIMARY KEY(ltmstmp, symbol) NOT ENFORCED
                 ) with (
-                    'connector' = 'filesystem',           -- required: specify the connector
-                    'path' = 'file:///tmp/output',  -- required: path to a directory
-                    'format' = 'CSV'
+                    'connector' = 'print'
                 )
         """
 
         t_env.execute_sql(sink_csv)
-
-        execute_result = transform_function_arbitrage(t_env.from_path('ohcl_msg_test')).execute_insert("es_sink_2")
+        execute_result = transform_function_arbitrage(t_env.from_path('ohcl_msg_test')).execute_insert('es_sink_2')
 
         # table_result = execute_result
         # with table_result.collect() as results:
