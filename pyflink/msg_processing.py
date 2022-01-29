@@ -1,5 +1,6 @@
-from pyflink.datastream import StreamExecutionEnvironment, TimeCharacteristic
-from pyflink.table import StreamTableEnvironment, DataTypes, EnvironmentSettings
+from pyflink.datastream import StreamExecutionEnvironment
+from pyflink.table import StreamTableEnvironment, DataTypes
+from pyflink.table.catalog import ObjectPath
 from pyflink.table.udf import udf
 from pyflink.table.window import Tumble
 
@@ -29,78 +30,18 @@ def setup_udf(t_env):
     t_env.register_function('timestamp_to_unix', timestamp_to_unix)
 
 
-def processing():
-    env = StreamExecutionEnvironment.get_execution_environment()
-    t_env = StreamTableEnvironment.create(stream_execution_environment=env)
-    t_env.get_config().get_configuration().set_boolean("python.fn-execution.memory.managed", True)
-
-    create_kafka_source_ddl = """
-            CREATE TABLE ohcl_msg(
-                t BIGINT,
-                p INTEGER,
-                s VARCHAR,
-                o DOUBLE,
-                h DOUBLE,
-                l DOUBLE,
-                c DOUBLE,
-                v DOUBLE,
-                new_t as TO_TIMESTAMP(FROM_UNIXTIME(t)),
-                WATERMARK FOR new_t AS new_t - INTERVAL '5' MINUTES
-            ) WITH (
-              'connector.type' = 'kafka',
-              'connector.version' = 'universal',
-              'connector.topic' = 'OHCL',
-              'connector.properties.bootstrap.servers' = 'kafka1:19092',
-              'connector.startup-mode' = 'earliest-offset',
-              'format.type' = 'json'
-            )
-            """
-
-    create_es_sink_ddl = """
-            CREATE TABLE es_sink (
-                   ltmstmp BIGINT,
-                    provider_list MULTISET<STRING>,
-                    symbol VARCHAR,
-                    avr_close_list MULTISET<DOUBLE>,
-                    text_time as TO_TIMESTAMP(FROM_UNIXTIME(ltmstmp)),
-                    PRIMARY KEY(ltmstmp, symbol) NOT ENFORCED
-            ) with (
-                'connector.type' = 'elasticsearch',
-                'connector.version' = '7',
-                'connector.hosts' = 'http://elasticsearch:9200',
-                'connector.index' = 'ohcl',
-                'connector.document-type'='ohcl-diff',
-                'update-mode' = 'upsert',
-                'connector.flush-on-checkpoint' = 'true',
-                'connector.key-delimiter' = '$',
-                'connector.key-null-literal' = 'n/a',
-                'connector.bulk-flush.max-size' = '42mb',
-                'connector.bulk-flush.max-actions' = '32',
-                'connector.bulk-flush.interval' = '1000',
-                'connector.bulk-flush.backoff.delay' = '1000',
-                'format.type' = 'json'
-
-            )
-    """
-
-
-    t_env.execute_sql(create_kafka_source_ddl)
-    t_env.execute_sql(create_es_sink_ddl)
-    setup_udf(t_env)
-
-    table_result = transform_function_simple(t_env.from_path('ohcl_msg')).execute_insert("es_sink")
-
-
-def transform_function_simple(src_tab):
-    return src_tab.select("provider_id_to_name(p) as provider, v") \
-        .group_by("provider") \
-        .select("provider, sum(v) as global_volume")
-
-
 def processing_arbitrage():
     env = StreamExecutionEnvironment.get_execution_environment()
     t_env = StreamTableEnvironment.create(stream_execution_environment=env)
     t_env.get_config().get_configuration().set_boolean("python.fn-execution.memory.managed", True)
+    # t_env.get_config().get_configuration().set_string("pipeline.jars",
+    #                                                       "file:///opt/flink/lib/flink-sql-connector-kafka_2.12-1.14.3.jar;"
+    #                                                       "file:///opt/flink/lib/flink-sql-connector-elasticsearch7_2.12-1.14.3.jar;"
+    #                                                       "file:///opt/flink/lib/flink-connector-kafka_2.12-1.14.3.jar;"
+    #                                                       "file:///opt/flink/lib/flink-connector-elasticsearch7_2.12-1.14.3.jar"
+    #                                                  )
+
+    setup_udf(t_env)
 
     create_kafka_source_ddl = """
             CREATE TABLE ohcl_msg(
@@ -115,60 +56,83 @@ def processing_arbitrage():
                 new_t as TO_TIMESTAMP(FROM_UNIXTIME(t)),
                 WATERMARK FOR new_t AS new_t - INTERVAL '10' SECONDS
             ) WITH (
-              'connector.type' = 'kafka',
-              'connector.version' = 'universal',
-              'connector.topic' = 'OHCL',
-              'connector.properties.bootstrap.servers' = 'kafka1:19092',
-              'connector.startup-mode' = 'earliest-offset',
-              'format.type' = 'json'
+              'connector' = 'kafka',
+              'topic' = 'OHCL',
+              'properties.bootstrap.servers' = 'kafka1:19092',
+              'scan.startup.mode' = 'earliest-offset',
+              'value.format' = 'json'
             )
             """
+    t_env.execute_sql(create_kafka_source_ddl)
 
-    create_es_sink_2_ddl = """
-                CREATE TABLE es_sink_2 (
-                    ltmstmp BIGINT,
-                    provider_list MULTISET<STRING>,
-                    symbol VARCHAR,
-                    avr_close_list MULTISET<DOUBLE>,
-                    text_time as TO_TIMESTAMP(FROM_UNIXTIME(ltmstmp)),
-                    PRIMARY KEY(ltmstmp, symbol) NOT ENFORCED
+    create_es_sink_ddl = """
+                CREATE TABLE es_sink (
+                    binance_provider STRING,
+                    symbol STRING,
+                    close_time TIMESTAMP(3),
+                    binance_avr_close DOUBLE,
+                    aex_provider STRING,
+                    aex_avr_close DOUBLE,
+                    PRIMARY KEY(binance_provider, aex_provider, symbol, close_time) NOT ENFORCED
                 ) with (
-                    'connector.type' = 'elasticsearch',
-                    'connector.version' = '7',
-                    'connector.hosts' = 'http://elasticsearch:9200',
-                    'connector.index' = 'ohcl',
-                    'connector.document-type'='ohcl-diff',
-                    'update-mode' = 'upsert',
-                    'connector.flush-on-checkpoint' = 'true',
-                    'connector.key-delimiter' = '$',
-                    'connector.key-null-literal' = 'n/a',
-                    'connector.bulk-flush.max-size' = '42mb',
-                    'connector.bulk-flush.max-actions' = '32',
-                    'connector.bulk-flush.interval' = '1000',
-                    'connector.bulk-flush.backoff.delay' = '1000',
-                    'format.type' = 'json'
+                    'connector' = 'elasticsearch-7',
+                    'hosts' = 'http://elasticsearch:9200',
+                    'index' = 'ohcl',
+                    'sink.flush-on-checkpoint' = 'true',
+                    'document-id.key-delimiter' = '$',
+                    'sink.bulk-flush.max-size' = '42mb',
+                    'sink.bulk-flush.max-actions' = '32',
+                    'sink.bulk-flush.interval' = '1000',
+                    'sink.bulk-flush.backoff.delay' = '1000',
+                    'format' = 'json'
                 )
         """
 
-    t_env.execute_sql(create_kafka_source_ddl)
-    t_env.execute_sql(create_es_sink_2_ddl)
-    setup_udf(t_env)
+    t_env.execute_sql(create_es_sink_ddl)
 
-    transform_function_arbitrage(t_env.from_path('ohcl_msg')).execute_insert("es_sink_2")
+    tab_result = transform_function_arbitrage(t_env.from_path('ohcl_msg'))
+    tab_result.execute_insert("es_sink")
+    #execute_result = transform_function_arbitrage(t_env.from_path('ohcl_msg')).execute()
+
 
 
 def transform_function_arbitrage(src_tab):
-    return src_tab.window(
+    agg_binance = src_tab.where(src_tab.p == BINANCE_PROVIDER_ID).window(
         Tumble.over("5.minutes").on("new_t").alias("w")
     ).group_by("p, s, w").select(
         """
             provider_id_to_name(p) as provider, s as symbol, 
-                AVG(c) AS avr_close, w.start as first_timestamp, w.end AS last_timestamp
+                AVG(c) AS avr_close, w.end AS last_timestamp
         """
-    ).group_by("symbol, last_timestamp").select(
+    ).alias("b_provider", "b_symbol", "b_avr_close", "b_last_timestamp")
+
+    agg_aex = src_tab.where(src_tab.p == AEX_PROVIDER_ID).window(
+        Tumble.over("5.minutes").on("new_t").alias("w")
+    ).group_by("p, s, w").select(
         """
-            timestamp_to_unix(last_timestamp) as ltmstmp, COLLECT(provider) as provider_list, symbol, COLLECT(avr_close) as avr_close_list
+            provider_id_to_name(p) as provider, s as symbol, 
+                AVG(c) AS avr_close, w.end AS last_timestamp
         """
+    ).alias("a_provider", "a_symbol", "a_avr_close", "a_last_timestamp")
+
+    return agg_binance.join(agg_aex, agg_binance.b_last_timestamp == agg_aex.a_last_timestamp).where(
+        agg_binance.b_symbol == agg_aex.a_symbol
+    ).select(
+        agg_binance.b_provider,
+        agg_binance.b_symbol,
+        agg_binance.b_last_timestamp,
+        agg_binance.b_avr_close,
+
+        agg_aex.a_provider,
+        agg_aex.a_avr_close
+    ).alias(
+        "binance_provider",
+        "symbol",
+        "close_time",
+        "binance_avr_close",
+
+        "aex_provider",
+        "aex_avr_close"
     )
 
 

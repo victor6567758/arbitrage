@@ -44,7 +44,7 @@ services:
   jobmanager:
     build:
       context: pyflink/
-    image: pyflink/pyflink:1.13.1-scala_2.12
+    image: pyflink/pyflink
     volumes:
       - ./pyflink:/opt/pyflink
     hostname: "jobmanager"
@@ -59,7 +59,7 @@ services:
       - kafka1
 
   taskmanager:
-    image: pyflink/pyflink:1.13.1-scala_2.12
+    image: pyflink/pyflink
     volumes:
     - ./pyflink:/opt/pyflink
     expose:

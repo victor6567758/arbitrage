@@ -45,3 +45,16 @@ https://github.com/apache/flink-playgrounds
 curl -X DELETE http://localhost:9200/test-2017-06
 
 http://localhost:9200/ohcl/_search
+
+
+>>>
+RUN wget -P ${FLINK_LIB}/lib https://repo.maven.apache.org/maven2/org/apache/flink/flink-json/${FLINK_VERSION}/flink-json-${FLINK_VERSION}.jar; \
+    wget -P ${FLINK_LIB}/lib https://repo.maven.apache.org/maven2/org/apache/flink/flink-csv/${FLINK_VERSION}/flink-csv-${FLINK_VERSION}.jar; \
+    wget -P ${FLINK_LIB}/lib https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-kafka_2.12/${FLINK_VERSION}/flink-sql-connector-kafka_2.12-${FLINK_VERSION}.jar; \
+    wget -P ${FLINK_LIB}/lib https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-elasticsearch7_2.12/${FLINK_VERSION}/flink-sql-connector-elasticsearch7_2.12-${FLINK_VERSION}.jar;
+
+
+    RUN wget -P ${FLINK_LIB}/lib https://repo.maven.apache.org/maven2/org/apache/flink/flink-connector-kafka_2.12/${FLINK_VERSION}/flink-connector-kafka_2.12-${FLINK_VERSION}.jar; \
+        wget -P ${FLINK_LIB}/lib https://repo.maven.apache.org/maven2/org/apache/flink/flink-connector-elasticsearch7_2.12/${FLINK_VERSION}/flink-connector-elasticsearch7_2.12-${FLINK_VERSION}.jar; \
+        wget -P ${FLINK_LIB}/lib https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-kafka_2.12/${FLINK_VERSION}/flink-sql-connector-kafka_2.12-${FLINK_VERSION}.jar; \
+        wget -P ${FLINK_LIB}/lib https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-elasticsearch7_2.12/${FLINK_VERSION}/flink-sql-connector-elasticsearch7_2.12-${FLINK_VERSION}.jar;
