@@ -53,7 +53,9 @@ def create_sink_table(t_env):
                         binance_avr_close DOUBLE,
                         aex_provider STRING,
                         aex_avr_close DOUBLE,
-                        PRIMARY KEY(binance_provider, aex_provider, symbol) NOT ENFORCED
+                        binance_aex_diff_avr_close DOUBLE,
+                        close_time_msec BIGINT,
+                        PRIMARY KEY(binance_provider, aex_provider, symbol, close_time) NOT ENFORCED
                     ) with (
                         'connector' = 'print'
                     )
@@ -70,7 +72,7 @@ class Test(TestCase):
 
         create_temp_src_table(t_env)
         setup_udf(t_env)
-        create_sink_table(t_env);
+        create_sink_table(t_env)
 
         table_result = transform_function_arbitrage(t_env.from_path('ohcl_msg_test')).execute_insert('es_sink')
         table_result.wait()

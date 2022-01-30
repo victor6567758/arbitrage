@@ -1,8 +1,8 @@
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import StreamTableEnvironment, DataTypes
-from pyflink.table.catalog import ObjectPath
 from pyflink.table.udf import udf
 from pyflink.table.window import Tumble
+from pyflink.table import expressions as expr
 
 from util import convert_date_to_unix
 
@@ -26,8 +26,8 @@ def timestamp_to_unix(tmstmp):
 
 
 def setup_udf(t_env):
-    t_env.register_function('provider_id_to_name', provider_id_to_name)
-    t_env.register_function('timestamp_to_unix', timestamp_to_unix)
+    t_env.create_temporary_function('provider_id_to_name', provider_id_to_name)
+    t_env.create_temporary_function('timestamp_to_unix', timestamp_to_unix)
 
 
 def processing_arbitrage():
@@ -73,11 +73,13 @@ def processing_arbitrage():
                     binance_avr_close DOUBLE,
                     aex_provider STRING,
                     aex_avr_close DOUBLE,
+                    binance_aex_diff_avr_close DOUBLE,
+                    close_time_msec BIGINT,
                     PRIMARY KEY(binance_provider, aex_provider, symbol, close_time) NOT ENFORCED
                 ) with (
                     'connector' = 'elasticsearch-7',
                     'hosts' = 'http://elasticsearch:9200',
-                    'index' = 'ohcl',
+                    'index' = 'arbitrage-sink-v4',
                     'sink.flush-on-checkpoint' = 'true',
                     'document-id.key-delimiter' = '$',
                     'sink.bulk-flush.max-size' = '42mb',
@@ -115,7 +117,7 @@ def transform_function_arbitrage(src_tab):
         """
     ).alias("a_provider", "a_symbol", "a_avr_close", "a_last_timestamp")
 
-    return agg_binance.join(agg_aex, agg_binance.b_last_timestamp == agg_aex.a_last_timestamp).where(
+    joined_tab = agg_binance.join(agg_aex, agg_binance.b_last_timestamp == agg_aex.a_last_timestamp).where(
         agg_binance.b_symbol == agg_aex.a_symbol
     ).select(
         agg_binance.b_provider,
@@ -124,7 +126,8 @@ def transform_function_arbitrage(src_tab):
         agg_binance.b_avr_close,
 
         agg_aex.a_provider,
-        agg_aex.a_avr_close
+        agg_aex.a_avr_close,
+        agg_binance.b_avr_close - agg_aex.a_avr_close,
     ).alias(
         "binance_provider",
         "symbol",
@@ -132,8 +135,11 @@ def transform_function_arbitrage(src_tab):
         "binance_avr_close",
 
         "aex_provider",
-        "aex_avr_close"
+        "aex_avr_close",
+        "binance_aex_diff_avr_close"
     )
+
+    return joined_tab.add_columns(expr.call("timestamp_to_unix", joined_tab.close_time).alias("close_time_msec"))
 
 
 if __name__ == '__main__':
