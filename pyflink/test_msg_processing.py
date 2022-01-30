@@ -1,20 +1,13 @@
 import os
 from unittest import TestCase
 
-from pyflink.table import EnvironmentSettings, StreamTableEnvironment, DataTypes
-from pyflink.table.udf import udf
+from pyflink.table import EnvironmentSettings, StreamTableEnvironment
 
 from msg_processing import setup_udf, transform_function_arbitrage
-from util import convert_unix_to_datetime
 
 SYMBOL = 'SYSUSDT'
 JAR_PATH = 'file://' + os.path.abspath("./test_libs")
 TEST_OUTPUT = 'file://' + os.path.abspath("./test_output")
-
-
-@udf(input_types=[DataTypes.BIGINT()], result_type=DataTypes.TIMESTAMP(3))
-def msc_to_timestamp(msec):
-    return convert_unix_to_datetime(msec)
 
 
 def test_config(t_env):

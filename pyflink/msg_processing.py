@@ -1,10 +1,12 @@
+import os
+import time
+
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import StreamTableEnvironment, DataTypes
 from pyflink.table.udf import udf
 from pyflink.table.window import Tumble
 from pyflink.table import expressions as expr
 
-from util import convert_date_to_unix
 
 BINANCE_PROVIDER_ID = 1
 BINANCE_PROVIDER_NAME = 'BINANCE_PROVIDER'
@@ -22,7 +24,7 @@ def provider_id_to_name(id):
 
 @udf(input_types=[DataTypes.TIMESTAMP(3)], result_type=DataTypes.BIGINT())
 def timestamp_to_unix(tmstmp):
-    return convert_date_to_unix(tmstmp)
+    return int(time.mktime(tmstmp.timetuple()))
 
 
 def setup_udf(t_env):

@@ -42,6 +42,11 @@ docker-compose exec jobmanager ./bin/flink run -py /opt/pyflink/msg_processing.p
 
 https://github.com/apache/flink-playgrounds
 
+https://nightlies.apache.org/flink/flink-docs-release-1.13/release-notes/flink-1.13/
+
+https://pythonspeed.com/articles/official-python-docker-image/
+
+
 curl -X DELETE http://localhost:9200/test-2017-06
 
 http://localhost:9200/ohcl/_search
