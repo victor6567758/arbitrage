@@ -66,19 +66,17 @@ def processing_arbitrage():
 
     create_es_sink_ddl = """
                 CREATE TABLE es_sink (
-                    binance_provider STRING,
                     symbol STRING,
                     close_time TIMESTAMP(3),
                     binance_avr_close DOUBLE,
-                    aex_provider STRING,
                     aex_avr_close DOUBLE,
                     binance_aex_diff_avr_close DOUBLE,
                     close_time_msec BIGINT,
-                    PRIMARY KEY(binance_provider, aex_provider, symbol, close_time) NOT ENFORCED
+                    PRIMARY KEY(symbol, close_time) NOT ENFORCED
                 ) with (
                     'connector' = 'elasticsearch-7',
                     'hosts' = 'http://elasticsearch:9200',
-                    'index' = 'arbitrage-sink-v5',
+                    'index' = 'arbitrage-sink-v6',
                     'sink.flush-on-checkpoint' = 'true',
                     'document-id.key-delimiter' = '$',
                     'sink.bulk-flush.max-size' = '42mb',
@@ -119,21 +117,17 @@ def transform_function_arbitrage(src_tab):
     joined_tab = agg_binance.join(agg_aex, agg_binance.b_last_timestamp == agg_aex.a_last_timestamp).where(
         agg_binance.b_symbol == agg_aex.a_symbol
     ).select(
-        agg_binance.b_provider,
         agg_binance.b_symbol,
         agg_binance.b_last_timestamp,
         agg_binance.b_avr_close,
 
-        agg_aex.a_provider,
         agg_aex.a_avr_close,
         agg_binance.b_avr_close - agg_aex.a_avr_close,
     ).alias(
-        "binance_provider",
         "symbol",
         "close_time",
         "binance_avr_close",
 
-        "aex_provider",
         "aex_avr_close",
         "binance_aex_diff_avr_close"
     )

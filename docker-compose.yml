@@ -47,7 +47,7 @@ services:
     image: pyflink/pyflink
     volumes:
       - ./pyflink:/opt/pyflink
-      - ../config/config.yml:/etc/config.yml:ro
+      - ${PWD}/config/config.yml:/etc/config.yml:ro
     hostname: "jobmanager"
     expose:
       - "6123"
@@ -64,7 +64,7 @@ services:
     image: pyflink/pyflink
     volumes:
       - ./pyflink:/opt/pyflink
-      - ../config/config.yml:/etc/config.yml:ro
+      - ${PWD}/config/config.yml:/etc/config.yml:ro
     expose:
       - "6121"
       - "6122"

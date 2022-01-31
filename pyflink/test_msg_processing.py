@@ -40,15 +40,13 @@ def create_temp_src_table(t_env):
 def create_sink_table(t_env):
     sink_csv = """
                     CREATE TABLE es_sink (
-                        binance_provider STRING,
                         symbol STRING,
                         close_time TIMESTAMP(3),
                         binance_avr_close DOUBLE,
-                        aex_provider STRING,
                         aex_avr_close DOUBLE,
                         binance_aex_diff_avr_close DOUBLE,
                         close_time_msec BIGINT,
-                        PRIMARY KEY(binance_provider, aex_provider, symbol, close_time) NOT ENFORCED
+                        PRIMARY KEY(symbol, close_time) NOT ENFORCED
                     ) with (
                         'connector' = 'print'
                     )
