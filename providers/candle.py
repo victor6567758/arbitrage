@@ -3,18 +3,15 @@ from datetime import datetime
 
 
 class Instrument:
-    def __init__(self, coin, market, provider_id, instrument_generator):
+    def __init__(self, coin, market, provider_id):
         self.coin = coin
         self.market = market
         self.provider_id = provider_id
-        self.instrument_generator = instrument_generator
-        self.internal_instrument = coin + market;
+        self.internal_instrument = coin + market
 
     def to_string(self):
         return "Instrument: {}/{}, provider id: {}".format(self.coin, self.market, self.provider_id)
 
-    def instrument(self):
-        return self.instrument_generator(self.coin, self.market)
 
     def __repr__(self):
         return self.to_string()

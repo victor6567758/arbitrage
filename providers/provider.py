@@ -1,14 +1,17 @@
 import logging
 from abc import abstractmethod
 
+from candle import Instrument
+
 
 class BaseProvider:
 
-    def __init__(self, senderLambda, id, name, instrument):
+    def __init__(self, senderLambda, id, name, instrument, internal_instrument_name_lambda):
         self.senderLambda = senderLambda
         self.id = id
         self.name = name
         self.instrument = instrument
+        self.internal_instrument_name_lambda = internal_instrument_name_lambda
 
     @abstractmethod
     def start(self):
@@ -17,6 +20,9 @@ class BaseProvider:
     @abstractmethod
     def shutdown(self):
         pass
+
+    def generate_internal_name(self, instrument: Instrument):
+        return self.internal_instrument_name_lambda(instrument.coin, instrument.market)
 
     def get_name(self):
         return self.name

@@ -1,10 +1,8 @@
 import hashlib
 import json
 import logging
-import os
 import threading
 import time
-import urllib.request
 
 import websocket
 
@@ -20,8 +18,8 @@ TIME_PERIOD = '1min'
 
 class AexProvider(BaseProvider):
 
-    def __init__(self, sender_lambda, id, name, instrument, auth_dict):
-        super(AexProvider, self).__init__(sender_lambda, id, name, instrument)
+    def __init__(self, sender_lambda, id, name, instrument, auth_dict, instrument_generator):
+        super(AexProvider, self).__init__(sender_lambda, id, name, instrument, instrument_generator)
         self.auth_dict = auth_dict
         self.ping_thread = None
         # websocket.enableTrace(True)
@@ -96,7 +94,7 @@ class AexProvider(BaseProvider):
             idx = symbol.index('@' + TIME_PERIOD)
             symbol = symbol[0:idx]
 
-            if kline['i'] == TIME_PERIOD and self.get_instrument().instrument() == symbol:
+            if kline['i'] == TIME_PERIOD and self.generate_internal_name(self.get_instrument()) == symbol:
                 candle = Candle(self.get_instrument(), kline['t'], float(kline['o']),
                                 float(kline['h']), float(kline['l']), float(kline['c']), float(kline['v']))
 
@@ -123,7 +121,7 @@ class AexProvider(BaseProvider):
 
     def subscribe_symbol_command(self):
         logging.log(logging.INFO, 'Subscribing to symbols...')
-        command_str = '{"cmd": 2, "action": "sub", "symbol": "' + self.get_instrument().instrument() + '@' + TIME_PERIOD + '"}'
+        command_str = '{"cmd": 2, "action": "sub", "symbol": "' + self.generate_internal_name(self.get_instrument()) + '@' + TIME_PERIOD + '"}'
         self.ws.send(command_str)
 
     def load_klines(self):
@@ -160,6 +158,7 @@ def create_from_configuration(provider_name, provider_config, send_lambda):
         send_lambda,
         provider_id,
         provider_name,
-        Instrument(symbol_first['coin'], symbol_first['market'], provider_id, lambda x, y: (x + '_' + y).lower()),
-        {'api_key': provider_config['api_key'], 'api_secret': provider_config['api_secret'], 'user_id': provider_config['user_id']}
+        Instrument(symbol_first['coin'], symbol_first['market'], provider_id),
+        {'api_key': provider_config['api_key'], 'api_secret': provider_config['api_secret'], 'user_id': provider_config['user_id']},
+        lambda x, y: (x + '_' + y).lower()
     )
