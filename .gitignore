@@ -134,3 +134,4 @@ database-data
 zk-single-kafka-single
 
 pyflink/test_output/*
+config

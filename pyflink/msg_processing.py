@@ -1,25 +1,22 @@
 import os
 import time
 
+import yaml
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import StreamTableEnvironment, DataTypes
+from pyflink.table import expressions as expr
 from pyflink.table.udf import udf
 from pyflink.table.window import Tumble
-from pyflink.table import expressions as expr
 
+providers_id_map_g = dict()
+providers_name_map_g = dict()
 
-BINANCE_PROVIDER_ID = 1
-BINANCE_PROVIDER_NAME = 'BINANCE_PROVIDER'
-
-AEX_PROVIDER_ID = 2
-AEX_PROVIDER_NAME = 'AEX_PROVIDER'
-
-providers = {BINANCE_PROVIDER_ID: BINANCE_PROVIDER_NAME, AEX_PROVIDER_ID: AEX_PROVIDER_NAME}
+CONFIG_PATH = os.environ.get("CONFIG_FILE")
 
 
 @udf(input_types=[DataTypes.INT()], result_type=DataTypes.STRING())
 def provider_id_to_name(id):
-    return providers[id]
+    return providers_id_map_g[id]
 
 
 @udf(input_types=[DataTypes.TIMESTAMP(3)], result_type=DataTypes.BIGINT())
@@ -81,7 +78,7 @@ def processing_arbitrage():
                 ) with (
                     'connector' = 'elasticsearch-7',
                     'hosts' = 'http://elasticsearch:9200',
-                    'index' = 'arbitrage-sink-v4',
+                    'index' = 'arbitrage-sink-v5',
                     'sink.flush-on-checkpoint' = 'true',
                     'document-id.key-delimiter' = '$',
                     'sink.bulk-flush.max-size' = '42mb',
@@ -96,12 +93,12 @@ def processing_arbitrage():
 
     tab_result = transform_function_arbitrage(t_env.from_path('ohcl_msg'))
     tab_result.execute_insert("es_sink")
-    #execute_result = transform_function_arbitrage(t_env.from_path('ohcl_msg')).execute()
-
+    # execute_result = transform_function_arbitrage(t_env.from_path('ohcl_msg')).execute()
 
 
 def transform_function_arbitrage(src_tab):
-    agg_binance = src_tab.where(src_tab.p == BINANCE_PROVIDER_ID).window(
+    global providers_name_map_g
+    agg_binance = src_tab.where(src_tab.p == providers_name_map_g['binance']).window(
         Tumble.over("5.minutes").on("new_t").alias("w")
     ).group_by("p, s, w").select(
         """
@@ -110,7 +107,7 @@ def transform_function_arbitrage(src_tab):
         """
     ).alias("b_provider", "b_symbol", "b_avr_close", "b_last_timestamp")
 
-    agg_aex = src_tab.where(src_tab.p == AEX_PROVIDER_ID).window(
+    agg_aex = src_tab.where(src_tab.p == providers_name_map_g['aex']).window(
         Tumble.over("5.minutes").on("new_t").alias("w")
     ).group_by("p, s, w").select(
         """
@@ -144,5 +141,30 @@ def transform_function_arbitrage(src_tab):
     return joined_tab.add_columns(expr.call("timestamp_to_unix", joined_tab.close_time).alias("close_time_msec"))
 
 
+def read_config_file(config_path):
+    with open(config_path) as f:
+        return yaml.load(f, Loader=yaml.FullLoader)
+
+
+def read_provider_config(config_path):
+    config = read_config_file(config_path)
+    if not config:
+        raise Exception('Invalid provider path', config_path)
+
+    providers = config['providers']
+    global providers_id_map_g
+    global providers_name_map_g
+
+    for provider, provider_details in providers.items():
+        providers_id_map_g[provider_details['provider_id']] = provider
+        providers_name_map_g[provider] = provider_details['provider_id']
+
+    if not providers_name_map_g.get('binance'):
+        raise Exception('No entry for binance provider', config_path)
+
+    if not providers_name_map_g.get('aex'):
+        raise Exception('No entry for binance aex', config_path)
+
 if __name__ == '__main__':
+    read_provider_config(CONFIG_PATH)
     processing_arbitrage()

@@ -3,17 +3,17 @@ from unittest import TestCase
 
 from pyflink.table import EnvironmentSettings, StreamTableEnvironment
 
-from msg_processing import setup_udf, transform_function_arbitrage
+from msg_processing import setup_udf, transform_function_arbitrage, read_provider_config
 
 SYMBOL = 'SYSUSDT'
 JAR_PATH = 'file://' + os.path.abspath("./test_libs")
 TEST_OUTPUT = 'file://' + os.path.abspath("./test_output")
 
 
-def test_config(t_env):
+def init_config(t_env):
     t_env.get_config().get_configuration().set_string('parallelism.default', '1')
     t_env.get_config().get_configuration().set_string("execution.checkpointing.interval", "10s")
-
+    read_provider_config('../config/config.yml')
 
 def create_temp_src_table(t_env):
     create_source_ddl = """
@@ -61,7 +61,7 @@ class Test(TestCase):
     def test_aggregation(self):
         env_settings = EnvironmentSettings.new_instance().in_streaming_mode().use_blink_planner().build()
         t_env = StreamTableEnvironment.create(environment_settings=env_settings)
-        test_config(t_env)
+        init_config(t_env)
 
         create_temp_src_table(t_env)
         setup_udf(t_env)
