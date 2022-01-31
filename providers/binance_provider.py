@@ -1,14 +1,14 @@
 import logging
-import os
 
 from binance import Client, ThreadedWebsocketManager
 
 from candle import Candle, Instrument
 from provider import BaseProvider
 
+
 class BinanceProvider(BaseProvider):
-    def __init__(self, sender_lambda, id, name, instrument, auth_dict):
-        super(BinanceProvider, self).__init__(sender_lambda, id, name, instrument)
+    def __init__(self, sender_lambda, id, name, instrument, auth_dict, instrument_generator):
+        super(BinanceProvider, self).__init__(sender_lambda, id, name, instrument, instrument_generator)
         self.auth_dict = auth_dict
         self.client = Client(self.auth_dict['api_key'], self.auth_dict['api_secret'])
         self.twm = ThreadedWebsocketManager()
@@ -24,7 +24,8 @@ class BinanceProvider(BaseProvider):
         # self.from_klines(klines)
 
         self.twm.start()
-        self.twm.start_kline_socket(callback=self.handle_socket_message, symbol=self.get_instrument().instrument())
+        self.twm.start_kline_socket(callback=self.handle_socket_message,
+                                    symbol=self.generate_internal_name(self.get_instrument()))
 
     def shutdown(self):
         logging.log(logging.INFO, 'Finishing')
@@ -54,7 +55,7 @@ class BinanceProvider(BaseProvider):
     def handle_socket_message(self, msg):
         if msg['e'] == 'kline':
             data = msg['k']
-            if data['i'] == '1m' and data['x'] and data['s'] == self.get_instrument().instrument():
+            if data['i'] == '1m' and data['x'] and data['s'] == self.generate_internal_name(self.get_instrument()):
                 candle = Candle(self.get_instrument(), data['T'] / 1000.0, float(data['o']), float(data['h']),
                                 float(data['l']),
                                 float(data['c']), float(data['n']))
@@ -63,7 +64,7 @@ class BinanceProvider(BaseProvider):
     def check_instrument(self):
         prices = self.client.get_all_tickers()
         for p in prices:
-            if p['symbol'] == self.get_instrument().instrument():
+            if p['symbol'] == self.generate_internal_name(self.get_instrument()):
                 return True
         return False
 
@@ -76,6 +77,7 @@ def create_from_configuration(provider_name, provider_config, send_lambda):
         send_lambda,
         provider_id,
         provider_name,
-        Instrument(symbol_first['coin'], symbol_first['market'], provider_id, lambda x, y: x + y),
-        {'api_key': provider_config['api_key'], 'api_secret': provider_config['api_secret']}
+        Instrument(symbol_first['coin'], symbol_first['market'], provider_id),
+        {'api_key': provider_config['api_key'], 'api_secret': provider_config['api_secret']},
+        lambda x, y: x + y
     )

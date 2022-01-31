@@ -70,7 +70,7 @@ def read_config_file(config_path):
 def read_provider_config(config_data, provider_name):
     provider_config = config_data['providers'].get(provider_name)
     if not provider_config:
-        raise Exception('Invalid provider', provider_name)
+        raise Exception('Invalid provider {}'.format(provider_name))
     return provider_config
 
 

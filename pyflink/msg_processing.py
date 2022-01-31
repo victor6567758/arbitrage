@@ -143,7 +143,7 @@ def read_config_file(config_path):
 def read_provider_config(config_path):
     config = read_config_file(config_path)
     if not config:
-        raise Exception('Invalid provider path', config_path)
+        raise Exception('Invalid provider path {}'.format(config_path))
 
     providers = config['providers']
     global providers_id_map_g
@@ -154,7 +154,7 @@ def read_provider_config(config_path):
         providers_name_map_g[provider] = provider_details['provider_id']
 
     if not providers_name_map_g.get('binance'):
-        raise Exception('No entry for binance provider', config_path)
+        raise Exception('No entry for binance provider {}'.format(config_path))
 
     if not providers_name_map_g.get('aex'):
         raise Exception('No entry for binance aex', config_path)
