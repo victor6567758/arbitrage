@@ -18,8 +18,9 @@ TIME_PERIOD = '1min'
 
 class AexProvider(BaseProvider):
 
-    def __init__(self, sender_lambda, id, name, instrument, auth_dict, instrument_generator):
-        super(AexProvider, self).__init__(sender_lambda, id, name, instrument, instrument_generator)
+    def __init__(self, sender_lambda, id: int, name: str, instruments: list, auth_dict: dict, instrument_generator):
+        super(AexProvider, self).__init__(sender_lambda, id, name, instruments, instrument_generator)
+
         self.auth_dict = auth_dict
         self.ping_thread = None
         # websocket.enableTrace(True)
@@ -32,8 +33,7 @@ class AexProvider(BaseProvider):
     def start(self):
         logging.log(logging.INFO, 'Started')
 
-        if not self.check_instrument():
-            raise Exception('Cannot find symbol {}'.format(self.get_instrument()))
+        self.check_instruments()
 
         # self.load_klines()
         self.ws.run_forever()
@@ -94,26 +94,34 @@ class AexProvider(BaseProvider):
             idx = symbol.index('@' + TIME_PERIOD)
             symbol = symbol[0:idx]
 
-            if kline['i'] == TIME_PERIOD and self.generate_internal_name(self.get_instrument()) == symbol:
-                candle = Candle(self.get_instrument(), kline['t'], float(kline['o']),
-                                float(kline['h']), float(kline['l']), float(kline['c']), float(kline['v']))
-
-                self.process_ohlc(candle)
+            if kline['i'] == TIME_PERIOD:
+                cur_instrument = self.get_name_instrument_dict().get(symbol)
+                if cur_instrument:
+                    candle = Candle(
+                        cur_instrument,
+                        int(kline['t']),
+                        float(kline['o']),
+                        float(kline['h']),
+                        float(kline['l']),
+                        float(kline['c']),
+                        float(kline['v'])
+                    )
+                    self.process_ohlc(candle)
             return True
         return False
 
-    def check_instrument(self):
+    def check_instruments(self):
         instr_json = read_request_helper(REST_API + '/v3/allpair.php')
-        for instr in instr_json['data']:
-            if instr['coin'].upper() == self.get_instrument().coin and instr[
-                'market'].upper() == self.get_instrument().market:
-                return True
 
-        return False
+        self.check_instruments_internal(
+            set([x['coin'].upper() + x['market'].upper() for x in instr_json['data']]),
+            set([x.coin + x.market for x in self.get_instruments()])
+        )
 
     def login_command(self):
         command = {'cmd': 99, 'action': 'login', 'key': self.auth_dict['api_key'], 'time': int(time.time())}
-        to_hash = command['key'] + '_' + self.auth_dict['user_id'] + '_' + self.auth_dict['api_secret'] + '_' + str(command['time'])
+        to_hash = command['key'] + '_' + self.auth_dict['user_id'] + '_' + self.auth_dict['api_secret'] + '_' + str(
+            command['time'])
         command['md5'] = hashlib.md5(to_hash.encode('utf-8')).hexdigest()
 
         command_str = json.dumps(command)
@@ -121,19 +129,22 @@ class AexProvider(BaseProvider):
 
     def subscribe_symbol_command(self):
         logging.log(logging.INFO, 'Subscribing to symbols...')
-        command_str = '{"cmd": 2, "action": "sub", "symbol": "' + self.generate_internal_name(self.get_instrument()) + '@' + TIME_PERIOD + '"}'
-        self.ws.send(command_str)
 
-    def load_klines(self):
-        kines_json = read_request_helper(REST_API + '/v3/kLine.php' + '?mk_type=' +
-                                         self.get_instrument().market + '&coinname=' + self.get_instrument().coin +
-                                         '&cycle=' + TIME_PERIOD)
+        for instrument in self.get_instruments():
+            command_str = '{"cmd": 2, "action": "sub", "symbol": "' + \
+                          self.generate_internal_name(instrument) + '@' + TIME_PERIOD + '"}'
+            self.ws.send(command_str)
 
-        for kline in kines_json['data']:
-            candle = Candle(self.get_instrument(), kline['t'], float(kline['o']), float(kline['h']),
-                            float(kline['l']), float(kline['c']), float(kline['v']))
-
-            self.process_ohlc(candle)
+    # def load_klines(self):
+    #     kines_json = read_request_helper(REST_API + '/v3/kLine.php' + '?mk_type=' +
+    #                                      self.get_instrument().market + '&coinname=' + self.get_instrument().coin +
+    #                                      '&cycle=' + TIME_PERIOD)
+    #
+    #     for kline in kines_json['data']:
+    #         candle = Candle(self.get_instrument(), kline['t'], float(kline['o']), float(kline['h']),
+    #                         float(kline['l']), float(kline['c']), float(kline['v']))
+    #
+    #         self.process_ohlc(candle)
 
     def shutdown(self):
         try:
@@ -152,13 +163,16 @@ class AexProvider(BaseProvider):
 
 def create_from_configuration(provider_name, provider_config, send_lambda):
     provider_id = provider_config['provider_id']
-    symbol_first = provider_config['symbols'][0]
+    symbol_first = provider_config['symbols']
+
+    instruments = [Instrument(x['coin'], x['market'], provider_id) for x in symbol_first]
 
     return AexProvider(
         send_lambda,
         provider_id,
         provider_name,
-        Instrument(symbol_first['coin'], symbol_first['market'], provider_id),
-        {'api_key': provider_config['api_key'], 'api_secret': provider_config['api_secret'], 'user_id': provider_config['user_id']},
+        instruments,
+        {'api_key': provider_config['api_key'], 'api_secret': provider_config['api_secret'],
+         'user_id': provider_config['user_id']},
         lambda x, y: (x + '_' + y).lower()
     )

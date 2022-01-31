@@ -21,16 +21,8 @@ class Instrument:
 
 
 class Candle:
-    def __init__(self):
-        self.instrument = None
-        self.open = 0.0
-        self.high = 0.0
-        self.low = 0.0
-        self.close = -0.0
-        self.volume = 0
-        self.datetime = -1
 
-    def __init__(self, instrument, close_time, open, high, low, close, volume):
+    def __init__(self, instrument: Instrument, close_time: int, open: float, high: float, low: float, close: float, volume: float):
         self.instrument = instrument
         self.open = open
         self.high = high
