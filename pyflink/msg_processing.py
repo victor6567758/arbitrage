@@ -76,7 +76,7 @@ def processing_arbitrage():
                 ) with (
                     'connector' = 'elasticsearch-7',
                     'hosts' = 'http://elasticsearch:9200',
-                    'index' = 'arbitrage-sink-v6',
+                    'index' = 'arbitrage-sink-v7',
                     'sink.flush-on-checkpoint' = 'true',
                     'document-id.key-delimiter' = '$',
                     'sink.bulk-flush.max-size' = '42mb',
