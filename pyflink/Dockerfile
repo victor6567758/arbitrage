@@ -126,7 +126,8 @@ RUN set -ex; \
 
 
 RUN  pip install apache-flink==1.14.3  \
-    && pip install kafka-python
+    && pip install kafka-python==2.0.2 \
+    && pip install pyyaml==6.0
 
 WORKDIR /opt/flink
 COPY ./binaries/flink-sql-connector-elasticsearch7_2.11-1.14.3.jar ./lib
