@@ -15,19 +15,16 @@ from util import read_request_helper
 REST_API = 'https://api.aex.zone'
 WS_API = 'wss://api.aex.zone/wsv3'
 
-AEX_API_KEY = os.environ.get("AEX_API_KEY")
-AEX_API_SECRET = os.environ.get("AEX_API_SECRET")
-AEX_USER_ID = os.environ.get("AEX_USER_ID")
-
 TIME_PERIOD = '1min'
 
 
 class AexProvider(BaseProvider):
 
-    def __init__(self, senderLambda, id, name, instrument):
-        super(AexProvider, self).__init__(senderLambda, id, name, instrument)
+    def __init__(self, sender_lambda, id, name, instrument, auth_dict):
+        super(AexProvider, self).__init__(sender_lambda, id, name, instrument)
+        self.auth_dict = auth_dict
         self.ping_thread = None
-        #websocket.enableTrace(True)
+        # websocket.enableTrace(True)
         self.ws = websocket.WebSocketApp(WS_API,
                                          on_open=self.on_open,
                                          on_message=self.on_message,
@@ -40,7 +37,7 @@ class AexProvider(BaseProvider):
         if not self.check_instrument():
             raise Exception('Cannot find symbol {}'.format(self.get_instrument()))
 
-        #self.load_klines()
+        # self.load_klines()
         self.ws.run_forever()
 
     def on_message(self, ws, message):
@@ -117,8 +114,8 @@ class AexProvider(BaseProvider):
         return False
 
     def login_command(self):
-        command = {'cmd': 99, 'action': 'login', 'key': AEX_API_KEY, 'time': int(time.time())}
-        to_hash = command['key'] + '_' + AEX_USER_ID + '_' + AEX_API_SECRET + '_' + str(command['time'])
+        command = {'cmd': 99, 'action': 'login', 'key': self.auth_dict['api_key'], 'time': int(time.time())}
+        to_hash = command['key'] + '_' + self.auth_dict['user_id'] + '_' + self.auth_dict['api_secret'] + '_' + str(command['time'])
         command['md5'] = hashlib.md5(to_hash.encode('utf-8')).hexdigest()
 
         command_str = json.dumps(command)
@@ -153,3 +150,16 @@ class AexProvider(BaseProvider):
             logging.log(logging.ERROR, "Shutdown error: thread join: %s", err)
 
         logging.log(logging.INFO, 'Shutdown competed')
+
+
+def create_from_configuration(provider_name, provider_config, send_lambda):
+    provider_id = provider_config['provider_id']
+    symbol_first = provider_config['symbols'][0]
+
+    return AexProvider(
+        send_lambda,
+        provider_id,
+        provider_name,
+        Instrument(symbol_first['coin'], symbol_first['market'], provider_id, lambda x, y: (x + '_' + y).lower()),
+        {'api_key': provider_config['api_key'], 'api_secret': provider_config['api_secret'], 'user_id': provider_config['user_id']}
+    )

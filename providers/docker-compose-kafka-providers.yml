@@ -35,22 +35,21 @@ services:
 
   provider-aex:
     build: .
+    volumes:
+      - ${PWD}/../config/config.yml:/etc/config.yml:ro
     environment:
-      AEX_API_KEY: cf44d37068aa9c0cae6501371694f470
-      AEX_API_SECRET: cdf24d8241401fcd7b487460032b06d0ebbc898d0727aa0d26665685e0f606f1
-      AEX_USER_ID: 988521
       KAFKA_HOST: kafka1:19092
-      LOG_LEVEL: INFO
-    command: "main.py -p aex"
+    command: "main.py -p aex -c /etc/config.yml"
     depends_on:
       - kafka1
 
   provider-binance:
     build: .
+    volumes:
+      - ${PWD}/../config/config.yml:/etc/config.yml:ro
     environment:
-      BINANCE_API_KEY: BrsWGZTLE5nW4bGuH98vl8Y9s9tHmm4Q8xCP0AK9CTVyVG5r8VHJu1kx2TJAHyXj
-      BINANCE_API_SECRET: 5qc90s9yif0gAyJqLWtfR9Kp0Gmn529pfgdjFIUiDxsnqeHjB9NTlHyhDRasV0rH
       KAFKA_HOST: kafka1:19092
-    command: "main.py -p binance"
+    command: "main.py -p binance -c /etc/config.yml"
     depends_on:
       - kafka1
+

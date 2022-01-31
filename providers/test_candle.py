@@ -14,7 +14,7 @@ class TestCandle(TestCase):
         json_candle_str = json.dumps(candle.to_dict()).encode('utf-8')
         json_candle = json.loads(json_candle_str)
 
-        self.assertEqual(json_candle['t'], time_val)
+        self.assertAlmostEqual(json_candle['t'], time_val, 3)
         self.assertEqual(json_candle['o'], 1.1)
         self.assertEqual(json_candle['h'], 2.3)
         self.assertEqual(json_candle['l'], 0.4)
